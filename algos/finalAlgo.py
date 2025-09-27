@@ -12,12 +12,29 @@ EMA_PERIOD = 40
 MAX_BASE_QTY = 10
 
 def compute_time_to_expiry(round_number: int, current_timestamp: int) -> float:
+    """Compute the time to expiry in IMC Prosperity time.
+
+    Args:
+        round_number (int): round number
+        current_timestamp (int): current timestamp
+
+    Returns:
+        float: time to expiry
+    """
     total_round_units = 7_000_000
     day_units = 1_000_000
     remaining_units = total_round_units - (((round_number - 1) * day_units) + current_timestamp)
     return (remaining_units / day_units) / 365.25
 
 def norm_cdf(x: float) -> float:
+    """Compute the cumulative distribution function of the standard normal distribution.
+
+    Args:
+        x (float): value
+
+    Returns:
+        float: cumulative distribution function of the standard normal distribution
+    """
     a1 = 0.31938153
     a2 = -0.356563782
     a3 = 1.781477937
@@ -82,6 +99,18 @@ def calculate_delta(spot: float, strike: float, time_to_expiry: float,
 
 def implied_volatility(market_price: float, spot: float, strike: float, round_number: int,
                        current_timestamp: int, r: float = 0.0, tol: float = 1e-6, max_iter: int = 1000) -> float:
+    """Compute the implied volatility.
+
+    Args:
+        market_price (float): market price
+        spot (float): spot price
+        strike (float): strike price
+        round_number (int): round number
+        current_timestamp (int): current timestamp
+        r (float): risk free rate
+        tol (float): tolerance
+        max_iter (int): maximum number of iterations
+    """
     TTE = compute_time_to_expiry(round_number, current_timestamp)
     
     def objective(vol):
@@ -105,11 +134,30 @@ def implied_volatility(market_price: float, spot: float, strike: float, round_nu
     return np.nan
 
 def compute_m_t(spot: float, strike: float, time_to_expiry: float) -> float:
+    """Compute the m_t value.
+
+    Args:
+        spot (float): spot price
+        strike (float): strike price
+        time_to_expiry (float): time to expiry
+
+    Returns:
+        float: m_t value
+    """
     if spot <= 0 or time_to_expiry <= 0:
         return np.nan
     return math.log(strike / spot) / math.sqrt(time_to_expiry)
 
 def fit_parabolic(m_values: np.ndarray, v_values: np.ndarray) -> np.ndarray:
+    """Fit a parabolic smile to the given data.
+
+    Args:
+        m_values (np.ndarray): m values
+        v_values (np.ndarray): v values
+
+    Returns:
+        np.ndarray: coeffs
+    """
     coeffs = np.polyfit(m_values, v_values, 2)
     return coeffs
 
@@ -201,6 +249,14 @@ class Logger:
         self.logs += sep.join(map(str, objects)) + end
 
     def flush(self, state: TradingState, orders: dict[Symbol, list[Order]], conversions: int, trader_data: str) -> None:
+        """Flush logs.
+
+        Args:
+            state (TradingState): state
+            orders (dict[Symbol, list[Order]]): orders
+            conversions (int): conversions
+            trader_data (str): trader data
+        """
         base_length = len(self.to_json([
             self.compress_state(state, ""),
             self.compress_orders(orders),
@@ -222,6 +278,15 @@ class Logger:
         self.logs = ""
 
     def compress_state(self, state: TradingState, trader_data: str) -> list[Any]:
+        """Compress state.
+
+        Args:
+            state (TradingState): state
+            trader_data (str): trader data
+
+        Returns:
+            list[Any]: compressed state
+        """
         return [
             state.timestamp,
             trader_data,
@@ -234,12 +299,28 @@ class Logger:
         ]
 
     def compress_listings(self, listings: dict[Symbol, Listing]) -> list[list[Any]]:
+        """Compress listings.
+
+        Args:
+            listings (dict[Symbol, Listing]): listings
+
+        Returns:
+            list[list[Any]]: compressed listings
+        """
         compressed = []
         for listing in listings.values():
             compressed.append([listing.symbol, listing.product, listing.denomination])
         return compressed
 
     def compress_order_depths(self, order_depths: dict[Symbol, OrderDepth]) -> dict[Symbol, list[Any]]:
+        """Compress order depths.
+
+        Args:
+            order_depths (dict[Symbol, OrderDepth]): order depths
+
+        Returns:
+            dict[Symbol, list[Any]]: compressed order depths
+        """
         compressed = {}
         for symbol, order_depth in order_depths.items():
             compressed[symbol] = [order_depth.buy_orders, order_depth.sell_orders]
@@ -247,6 +328,14 @@ class Logger:
         return compressed
 
     def compress_trades(self, trades: dict[Symbol, list[Trade]]) -> list[list[Any]]:
+        """Compress trades.
+
+        Args:
+            trades (dict[Symbol, list[Trade]]): trades
+
+        Returns:
+            list[list[Any]]: compressed trades
+        """
         compressed = []
         for arr in trades.values():
             for trade in arr:
@@ -262,6 +351,14 @@ class Logger:
         return compressed
 
     def compress_observations(self, observations: Observation) -> list[Any]:
+        """Compress observations.
+
+        Args:
+            observations (Observation): observations
+
+        Returns:
+            list[Any]: compressed observations
+        """
         conversion_observations = {}
         for product, observation in observations.conversionObservations.items():
             conversion_observations[product] = [
@@ -277,6 +374,14 @@ class Logger:
         return [observations.plainValueObservations, conversion_observations]
 
     def compress_orders(self, orders: dict[Symbol, list[Order]]) -> list[list[Any]]:
+        """Compress orders.
+
+        Args:
+            orders (dict[Symbol, list[Order]]): orders
+
+        Returns:
+            list[list[Any]]: compressed orders
+        """
         compressed = []
         for arr in orders.values():
             for order in arr:
@@ -285,9 +390,26 @@ class Logger:
         return compressed
 
     def to_json(self, value: Any) -> str:
+        """Convert value to JSON.
+
+        Args:
+            value (Any): value
+
+        Returns:
+            str: JSON string
+        """
         return json.dumps(value, cls=ProsperityEncoder, separators=(",", ":"))
 
     def truncate(self, value: str, max_length: int) -> str:
+        """Truncate value if it exceeds max length.
+
+        Args:
+            value (str): value
+            max_length (int): max length
+
+        Returns:
+            str: truncated value
+        """
         if len(value) <= max_length:
             return value
 
@@ -296,7 +418,7 @@ class Logger:
 logger = Logger()
 
 class Status:
-
+    # Maximum position limit as per the problem statement
     _position_limit = {
         "RAINFOREST_RESIN": 50,
         "KELP": 50,
@@ -398,13 +520,6 @@ class Status:
                 cnt += 1
         cls._num_data += 1
         
-        # cls._hist_observation['sunlight'].append(state.observations.conversionObservations['ORCHIDS'].sunlight)
-        # cls._hist_observation['humidity'].append(state.observations.conversionObservations['ORCHIDS'].humidity)
-        # cls._hist_observation['transportFees'].append(state.observations.conversionObservations['ORCHIDS'].transportFees)
-        # cls._hist_observation['exportTariff'].append(state.observations.conversionObservations['ORCHIDS'].exportTariff)
-        # cls._hist_observation['importTariff'].append(state.observations.conversionObservations['ORCHIDS'].importTariff)
-        # cls._hist_observation['bidPrice'].append(state.observations.conversionObservations['ORCHIDS'].bidPrice)
-        # cls._hist_observation['askPrice'].append(state.observations.conversionObservations['ORCHIDS'].askPrice)
 
     def hist_order_depth(self, type: str, depth: int, size) -> np.ndarray:
         """Return historical order depth.
@@ -422,6 +537,12 @@ class Status:
     
     @property
     def timestep(self) -> int:
+        """Return timestep.
+
+        Returns:
+            int: timestep
+
+        """
         return self._state.timestamp / 100
 
     @property
@@ -494,6 +615,13 @@ class Status:
     
     @classmethod
     def _cls_update_bids(cls, product, prc, new_amt):
+        """Update bid orders.
+
+        Args:
+            product (str): product
+            prc (int): price
+            new_amt (int): new amount
+        """
         if new_amt > 0:
             cls._state.order_depths[product].buy_orders[prc] = new_amt
         elif new_amt == 0:
@@ -503,6 +631,13 @@ class Status:
 
     @classmethod
     def _cls_update_asks(cls, product, prc, new_amt):
+        """Update ask orders.
+
+        Args:
+            product (str): product
+            prc (int): price
+            new_amt (int): new amount
+        """
         if new_amt < 0:
             cls._state.order_depths[product].sell_orders[prc] = new_amt
         elif new_amt == 0:
@@ -605,6 +740,12 @@ class Status:
         return res_array
     
     def hist_vwap_all(self, size:int) -> np.ndarray:
+        """Return volume weighted average price of all orders.
+
+        Returns:
+            np.ndarray: volume weighted average price of all orders
+
+        """
         res_array = np.zeros(size)
         volsum_array = np.zeros(size)
         for i in range(1,4):
@@ -638,6 +779,12 @@ class Status:
 
     @property
     def best_ask(self) -> int:
+        """Return best ask price.
+
+        Returns:
+            int: best ask price
+
+        """
         sell_orders = self._state.order_depths[self.product].sell_orders
         if len(sell_orders) > 0:
             return min(sell_orders.keys())
@@ -646,10 +793,22 @@ class Status:
 
     @property
     def mid(self) -> float:
+        """Return mid price.
+
+        Returns:
+            float: mid price
+
+        """
         return (self.best_bid + self.best_ask) / 2
     
     @property
     def bid_ask_spread(self) -> int:
+        """Return bid ask spread.
+
+        Returns:
+            int: bid ask spread
+
+        """
         return self.best_ask - self.best_bid
 
     @property
@@ -678,6 +837,12 @@ class Status:
     
     @property
     def worst_bid(self) -> int:
+        """Return worst bid price.
+
+        Returns:
+            int: worst bid price
+
+        """
         buy_orders = self._state.order_depths[self.product].buy_orders
         if len(buy_orders) > 0:
             return min(buy_orders.keys())
@@ -686,6 +851,12 @@ class Status:
 
     @property
     def worst_ask(self) -> int:
+        """Return worst ask price.
+
+        Returns:
+            int: worst ask price
+
+        """
         sell_orders = self._state.order_depths[self.product].sell_orders
         if len(sell_orders) > 0:
             return max(sell_orders.keys())
@@ -694,6 +865,12 @@ class Status:
 
     @property
     def vwap(self) -> float:
+        """Return volume weighted average price.
+
+        Returns:
+            float: volume weighted average price
+
+        """
         vwap = 0
         total_amt = 0
 
@@ -770,9 +947,23 @@ class Status:
     
     @property
     def maxamt_midprc(self) -> float:
+        """Return price of bid and ask order with maximum amount.
+
+        Returns:
+            float: price of bid and ask order with maximum amount
+
+        """
         return (self.maxamt_bidprc + self.maxamt_askprc) / 2
 
     def bidamt(self, price) -> int:
+        """Return amount of bid order at given price.
+
+        Args:
+            price (int): price
+
+        Returns:
+            int: amount of bid order at given price
+        """
         order_depth = self._state.order_depths[self.product].buy_orders
         if price in order_depth.keys():
             return order_depth[price]
@@ -780,6 +971,14 @@ class Status:
             return 0
         
     def askamt(self, price) -> int:
+        """Return amount of ask order at given price.
+
+        Args:
+            price (int): price
+
+        Returns:
+            int: amount of ask order at given price
+        """
         order_depth = self._state.order_depths[self.product].sell_orders
         if price in order_depth.keys():
             return order_depth[price]
@@ -789,6 +988,25 @@ class Status:
 class Strategy:
     @staticmethod
     def arb(state: Status, fair_price):
+        """Place arbitrage orders around a reference fair price.
+
+        Scans the current order book and:
+        - Buys at asks priced strictly below ``fair_price``, and at ``fair_price`` to cover shorts.
+        - Sells to bids priced strictly above ``fair_price``, and at ``fair_price`` to reduce longs.
+        Trades are sized by available inventory room to respect position limits.
+
+        Args:
+            state (Status): Trading state wrapper for ``state.product``; exposes order book,
+                position limits, and mutation helpers.
+            fair_price (int | float): Reference fair value to trade against.
+
+        Returns:
+            list[Order]: Orders that buy undervalued asks and sell overvalued bids.
+
+        Side Effects:
+            - Updates ``state`` real-time position via ``rt_position_update``.
+            - Mutates in-memory order book via ``update_asks``/``update_bids`` to reflect fills.
+        """
         orders = []
 
         for ask_price, ask_amount in state.asks:
@@ -825,6 +1043,7 @@ class Strategy:
     
     @staticmethod
     def mm_glft(
+        
         state: Status,
         fair_price,
         mu,
@@ -832,6 +1051,31 @@ class Strategy:
         gamma=1e-9,
         order_amount=50,
     ):
+        """Market-making quotes using the GLFT model (see README for expansion).
+
+        Computes inventory-aware bid/ask offsets from ``fair_price`` via the GLFT
+        quoting rule, clamps quotes to the order book bounds, and returns limit
+        orders sized by ``order_amount`` while respecting position capacity.
+
+        Args:
+            state (Status): Trading state wrapper for ``state.product``; provides
+                best bid/ask, depth features, and position limits.
+            fair_price (int | float): Reference fair value to quote around.
+            mu (float): Drift parameter in the GLFT formula.
+            sigma (float): Volatility parameter in the GLFT formula.
+            gamma (float, optional): Risk aversion (inventory penalty). Defaults to ``1e-9``.
+            order_amount (int, optional): Target order size per side. Defaults to ``50``.
+
+        Returns:
+            list[Order]: Up to two limit orders: one bid below and one ask above
+                ``fair_price`` if allowed by limits and book constraints.
+
+        Notes:
+            - Inventory enters via ``q = state.rt_position / order_amount``.
+            - ``kappa_b``/``kappa_a`` approximate arrival intensities from quote distances;
+              ``A_b``/``A_a`` are intensity scales.
+            - This function only returns orders; it does not mutate ``state``.
+        """
         q = state.rt_position / order_amount
 
         kappa_b = 1 / max((fair_price - state.best_bid) - 1, 1)
@@ -871,7 +1115,31 @@ class Strategy:
         gamma=1e-9,
         order_amount=0,
     ):
+        """Market-making quotes using an Ornstein–Uhlenbeck (OU) mean-reversion model.
 
+        Computes inventory-aware bid/ask offsets around ``fair_price`` from an OU
+        control with a discrete value function, then clamps quotes to current book
+        constraints. Orders are sized by ``order_amount`` within position limits.
+
+        Args:
+            state (Status): Trading state for ``state.product``; provides best bid/ask,
+                depth features, and position limits.
+            fair_price (int | float): Reference mean-reversion level to quote around.
+            gamma (float, optional): Risk aversion parameter. Defaults to ``1e-9``.
+            order_amount (int, optional): Target order size per side; must be > 0.
+
+        Returns:
+            list[Order]: Up to two limit orders: a bid below and an ask above
+                ``fair_price`` when capacity allows.
+
+        Notes:
+            - Inventory scale: ``q = state.rt_position / order_amount``; capacity:
+              ``Q = state.position_limit / order_amount``.
+            - ``vfucn`` encodes the OU inventory value; its finite differences
+              tilt bid/ask distances to manage inventory.
+            - ``kappa_b``/``kappa_a`` approximate arrival intensities from quote distances.
+            - This function does not mutate ``state``; it only returns orders.
+        """
         q = state.rt_position / order_amount
         Q = state.position_limit / order_amount
 
@@ -916,7 +1184,26 @@ class Strategy:
         croiss_m= 6,
         djembe_m= 1,
     ):
-        
+        """Place index arbitrage orders based on the spread between the basket and the underlying assets.
+
+        Args:
+            basket (Status): Trading state wrapper for ``basket.product``; exposes order book,
+                position limits, and mutation helpers.
+            jam (Status): Trading state wrapper for ``jam.product``; exposes order book,
+                position limits, and mutation helpers.
+            djembes (Status): Trading state wrapper for ``djembes.product``; exposes order book,
+                position limits, and mutation helpers.
+            croissant (Status): Trading state wrapper for ``croissant.product``; exposes order book,
+                position limits, and mutation helpers.
+            theta (float): Threshold for the spread.
+            threshold (float): Threshold for the spread.
+            jam_m (float): Multiplier for the jam VWAP.
+            croiss_m (float): Multiplier for the croissant VWAP.
+            djembe_m (float): Multiplier for the djembes VWAP.
+
+        Returns:
+            list[Order]: Orders that buy undervalued basket and sell overvalued underlying assets.
+        """
         basket_prc = basket.mid
         underlying_prc = jam_m * jam.vwap + croiss_m * croissant.vwap + djembe_m * djembes.vwap
         spread = basket_prc - underlying_prc
@@ -1271,15 +1558,18 @@ class Trader:
     
     VOL_PARAMS = {
         "std_window": 45,
-        #"mean_volatility": {
-           # '9500': 0.129, '9750': 0.159, '10000': 0.149, '10250': 0.138, '10500': 0.142 # Use STRINGS
-        #},
         "zscore_threshold": 1, # default 2
         "trade_size": 200, # default 20
         "min_iv_history": 10
     }
 
     def __init__(self):
+        """
+        Initialize the Trader class.
+
+        Args:
+            self (Trader): Trader object
+        """
         self.offsets = list(range(-5, 2))   # try –5 up to +1
         self.counts  = {o:1 for o in self.offsets}
         self.rewards = {o:0.0 for o in self.offsets}
@@ -1293,6 +1583,14 @@ class Trader:
         return max(self.offsets, key=ucb)
 
     def run(self, state: TradingState) -> tuple[dict[Symbol, list[Order]], int, str]:
+        """Run the Trader class, this is where everything is executed in IMC Prosperity Backtest.
+
+        Args:
+            state (TradingState): Trading state
+
+        Returns:
+            tuple[dict[Symbol, list[Order]], int, str]: Orders, conversions, and trader data
+        """
         Status.cls_update(state)
         round_number = 5
         current_timestamp = state.timestamp
@@ -1423,10 +1721,9 @@ class Trader:
                 # Check if price is too close to or below intrinsic value
                 if market_price <= (intrinsic_value + tolerance):
                     logger.print(f"{symbol}: Market price {market_price:.2f} near/below intrinsic {intrinsic_value:.2f}. Treating IV as near zero.")
-                    # Option 1: Assign NaN (preferred, avoids potentially misleading Z-score)
+                    # Assign NaN (preferred, avoids potentially misleading Z-score)
                     actual_v_t = np.nan
-                    # Option 2: Assign a tiny volatility (use if delta calc needs a non-NaN value)
-                    # actual_v_t = 1e-5
+                   
                 else:
                     # Calculate Implied Volatility only if price is safely above intrinsic
                     actual_v_t = implied_volatility(market_price, spot_volcanic, K, round_number, current_timestamp, r)
@@ -1521,53 +1818,9 @@ class Trader:
         # --- End Voucher Processing Loop ---
 
 
-        # 3. Calculate Net Portfolio Delta and Hedge Order
-        # current_portfolio_delta = 0.0
-        # # Sum delta of existing positions
-        # for symbol in voucher_symbols:
-        #     # Ensure position exists before accessing
-        #     position = voucher_states[symbol].position if symbol in state.position else 0
-        #     delta = self.voucher_deltas.get(symbol, 0.0) # Use stored delta
-        #     current_portfolio_delta += position * delta
-
-        # # Total delta after planned trades
-        # total_target_delta = current_portfolio_delta + net_voucher_delta_change
-
-        # # Calculate desired hedge position & order quantity
-        # target_hedge_position = -round(total_target_delta)
-        # current_hedge_position = self.state_volcanic_rock.position
-        # hedge_order_qty = target_hedge_position - current_hedge_position
-
-        # # Apply VOLCANIC_ROCK position limits
-        # hedge_limit = self.state_volcanic_rock.position_limit
-        # if hedge_order_qty > 0: # Buying hedge
-        #     hedge_order_qty = min(hedge_order_qty, hedge_limit - current_hedge_position)
-        # elif hedge_order_qty < 0: # Selling hedge
-        #     hedge_order_qty = max(hedge_order_qty, -hedge_limit - current_hedge_position)
-
-        # logger.print(f"Delta Hedge: CurrentVoucherDelta={current_portfolio_delta:.2f}, NewTradeDelta={net_voucher_delta_change:.2f}, TargetNetDelta={total_target_delta:.2f}")
-        # logger.print(f"Hedge Calc: TargetHedgePos={target_hedge_position}, CurrentHedgePos={current_hedge_position}, OrderQty={hedge_order_qty}")
+        
         result["VOLCANIC_ROCK"] = Trade.ema_mean_reversion(self.state_volcanic_rock, alpha=0.2, threshold=12)
-        # Create hedge order for VOLCANIC_ROCK if needed
-        # if abs(hedge_order_qty) > 0:
-        #     best_bid_vr = self.state_volcanic_rock.best_bid
-        #     best_ask_vr = self.state_volcanic_rock.best_ask
-        #     hedge_price = None
-
-        #     if hedge_order_qty > 0 and best_ask_vr is not None: # Buying hedge
-        #          hedge_price = best_ask_vr # Hit best ask
-        #     elif hedge_order_qty < 0 and best_bid_vr is not None: # Selling hedge
-        #          hedge_price = best_bid_vr # Hit best bid
-
-        #     if hedge_price is not None : # Place order only if price is valid
-        #         hedge_order = Order("VOLCANIC_ROCK", hedge_price, hedge_order_qty)
-        #         logger.print(f"-> HEDGE ORDER: {hedge_order.symbol} @ {hedge_order.price} x {hedge_order.quantity}")
-        #         if "VOLCANIC_ROCK" not in result: result["VOLCANIC_ROCK"] = []
-        #         result["VOLCANIC_ROCK"].append(hedge_order)
-        #     else:
-        #         logger.print(f"Cannot place hedge order: Invalid market BBO for VOLCANIC_ROCK")
-        # else:
-        #      logger.print("No hedge order needed.")
+       
 
 
         # --- Combine Orders ---
