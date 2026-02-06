@@ -1,59 +1,96 @@
 import pandas as pd
 import os
+import sys
+from typing import List
 
-data_type = input("Hii, Enter 'p' for prices or 't' for trades: ").strip().lower()
-round_number = input("Enter the round number (e.g., 1): ").strip()
 
-if data_type not in ['p', 't']:
-    print("Invalid input. Use 'p' or 't'.")
-    exit()
+def combine_market_data(data_type: str, round_num: str) -> None:
+    """Aggregates daily CSV files into a unified time-series dataset.
 
-prefix = "prices" if data_type == "p" else "trades"
-id_col = "product" if data_type == "p" else "symbol"
-folder = f"round{round_number}"
+    Performs vertical concatenation of daily files to preserve time continuity.
+    Injects a 'day' column to differentiate overlapping timestamps between days.
 
-files = {
-    f"{folder}/{prefix}_round_{round_number}_day_0.csv": "d0",
-    f"{folder}/{prefix}_round_{round_number}_day_-1.csv": "d-1",
-    f"{folder}/{prefix}_round_{round_number}_day_-2.csv": "d-2",
-}
+    Args:
+        data_type: The mode of operation. 'p' for prices, 't' for trades.
+        round_num: The round identifier used for directory resolution.
+    """
+    is_price = data_type == "p"
+    file_prefix = "prices" if is_price else "trades"
+    id_col = "product" if is_price else "symbol"
 
-dataframes = []
+    # Path is relative to the project root
+    base_dir = os.path.join("data", f"round{round_num}")
 
-for file, suffix in files.items():
-    print(f"Reading {file}...")
-    if not os.path.exists(file):
-        print(f"File {file} not found, skipping.")
-        continue
+    if not os.path.exists(base_dir):
+        print(f"Directory not found: {base_dir}")
+        return
+
+    frames: List[pd.DataFrame] = []
+
+    # Iterate through standard competition days (-2 to 0)
+    for day in range(-2, 1):
+        filename = f"{file_prefix}_round_{round_num}_day_{day}.csv"
+        filepath = os.path.join(base_dir, filename)
+
+        if not os.path.exists(filepath):
+            continue
+
+        print(f"Reading: {filename}")
+
+        try:
+            df = pd.read_csv(filepath, sep=";")
+        except pd.errors.EmptyDataError:
+            print(f"Skipping empty file: {filename}")
+            continue
+        except Exception as e:
+            print(f"Error reading {filename}: {e}")
+            continue
+
+        # Standardize headers
+        df.columns = df.columns.str.strip().str.lower()
+
+        if "timestamp" not in df.columns or id_col not in df.columns:
+            print(f"Skipping {filename}: Missing critical columns")
+            continue
+
+        # Inject day identifier if missing
+        if "day" not in df.columns:
+            df.insert(0, "day", day)
+
+        frames.append(df)
+
+    if not frames:
+        print("No valid dataframes found to combine.")
+        return
+
+    # Stack frames vertically
+    combined_df = pd.concat(frames, axis=0, ignore_index=True)
+
+    # Sort chronologically to ensure linear time progression
+    combined_df = combined_df.sort_values(by=["day", "timestamp", id_col]).reset_index(
+        drop=True
+    )
+
+    output_filename = f"combined_{file_prefix}_round_{round_num}.csv"
+    output_path = os.path.join(base_dir, output_filename)
 
     try:
-        df = pd.read_csv(file, sep=";")
-    except Exception as e:
-        print(f"Failed to read {file}: {e}")
-        continue
+        combined_df.to_csv(output_path, index=False, sep=";")
+        print(f"Successfully saved {len(combined_df)} rows to: {output_path}")
+    except PermissionError:
+        print(f"Write failed: Permission denied for {output_path}")
 
-    df.columns = df.columns.str.strip().str.lower()
 
-    if 'timestamp' not in df.columns or id_col not in df.columns:
-        print(f"Skipping {file} — missing 'timestamp' or '{id_col}' column.")
-        continue
+# Script execution
+try:
+    user_type = input("Enter 'p' for prices or 't' for trades: ").strip().lower()
+    if user_type not in ["p", "t"]:
+        print("Invalid input.")
+        sys.exit(1)
 
-    df['key'] = df['timestamp'].astype(str) + "_" + df[id_col]
-    df = df.drop_duplicates(subset='key', keep='first')
-    df = df.set_index('key')
-    df = df.drop(columns=['timestamp', id_col])
+    user_round = input("Enter round number (e.g., 1): ").strip()
+    combine_market_data(user_type, user_round)
 
-    df = df.add_suffix(f"_{suffix}")
-    dataframes.append(df)
-
-if dataframes:
-    combined_df = pd.concat(dataframes, axis=1)
-    combined_df = combined_df.reset_index()
-    combined_df[['timestamp', id_col]] = combined_df['key'].str.rsplit("_", n=1, expand=True)
-    combined_df = combined_df.drop(columns=['key'])
-
-    output_filename = f"{folder}/combined_{prefix}_round_{round_number}.csv"
-    combined_df.to_csv(output_filename, index=False)
-    print(f"Combined data saved to '{output_filename}'")
-else:
-    print("No valid dataframes to combine.")
+except KeyboardInterrupt:
+    print("\nOperation cancelled.")
+    sys.exit(0)
